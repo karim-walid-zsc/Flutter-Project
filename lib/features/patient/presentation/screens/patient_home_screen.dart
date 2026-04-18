@@ -9,22 +9,9 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../../doctor/providers/doctor_provider.dart';
 import '../../../../shared/models/auth_models.dart';
 
-// ======== ربط الـ Provider بالمستخدم الحالي ========
-final myProfileIdProvider = FutureProvider<int?>((ref) async {
-  // لما userId يتغير — الـ Provider يعيد الجلب تلقائياً
-  final userId = ref.watch(authProvider).user?.userId;
-  if (userId == null) {
-    // fallback للـ Storage لو التطبيق اتفتح من جديد
-    return ref.watch(authRepositoryProvider).getSavedPatientProfileId();
-  }
-  return ref.watch(authRepositoryProvider).getSavedPatientProfileId();
-});
-
-late final AutoDisposeFutureProvider<int?> myProfileIdProviderInstance;
-
-// ======== Provider لجلب دور المستخدم الحالي ========
-final currentUserRoleProvider = FutureProvider<String?>((ref) async {
-  return ref.watch(authRepositoryProvider).getSavedRole();
+// ======== Provider لجلب profileId من authProvider مباشرة ========
+final myProfileIdProvider = Provider<int?>((ref) {
+  return ref.watch(authProvider).user?.patientProfileId;
 });
 
 class PatientHomeScreen extends ConsumerStatefulWidget {
@@ -52,149 +39,142 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final profileIdAsync = ref.watch(myProfileIdProvider);
-    final roleAsync = ref.watch(currentUserRoleProvider);
+    // ======== قراءة المستخدم الحالي من authProvider مباشرة ========
+    final currentUser = ref.watch(authProvider).user;
+    final role = currentUser?.role ?? '';
+    final profileId = currentUser?.patientProfileId;
 
-    return profileIdAsync.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('خطأ: $e'))),
-      data: (profileId) {
-        if (profileId == null) {
-          return Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.link_off,
-                      size: 64, color: AppTheme.textSecondary),
-                  const SizedBox(height: 16),
-                  const Text('لم يتم ربط حسابك بعد'),
-                  TextButton(
-                    onPressed: () async {
-                      await ref.read(authProvider.notifier).logout();
-                      if (context.mounted) context.go(AppConstants.routeLogin);
-                    },
-                    child: const Text('تسجيل الخروج'),
-                  ),
-                ],
+    if (profileId == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.link_off,
+                  size: 64, color: AppTheme.textSecondary),
+              const SizedBox(height: 16),
+              const Text('لم يتم ربط حسابك بعد'),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () async {
+                  await ref.read(authProvider.notifier).logout();
+                  if (context.mounted) context.go(AppConstants.routeLogin);
+                },
+                child: const Text('تسجيل الخروج'),
               ),
-            ),
-          );
-        }
+            ],
+          ),
+        ),
+      );
+    }
 
-        final profileAsync = ref.watch(patientDetailProvider(profileId));
-        final role = roleAsync.value ?? AppConstants.rolePatient;
+    final profileAsync = ref.watch(patientDetailProvider(profileId));
 
-        return Scaffold(
-          backgroundColor: AppTheme.background,
-          body: profileAsync.when(
-            loading: () => const Center(
-                child: CircularProgressIndicator(color: AppTheme.primary)),
-            error: (e, _) => Center(child: Text('خطأ: $e')),
-            data: (profile) => NestedScrollView(
-              headerSliverBuilder: (_, __) => [
-                SliverAppBar(
-                  expandedHeight: 200,
-                  pinned: true,
-                  backgroundColor: AppTheme.primary,
-                  automaticallyImplyLeading: false,
-                  actions: [
-                    // ======== زر الصيدليات ========
-                    IconButton(
-                      icon: const Icon(Icons.local_pharmacy_outlined,
-                          color: Colors.white),
-                      tooltip: 'الصيدليات',
-                      onPressed: () => context.go(AppConstants.routePharmacies),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.logout, color: Colors.white),
-                      onPressed: () async {
-                        await ref.read(authProvider.notifier).logout();
-                        if (context.mounted) {
-                          context.go(AppConstants.routeLogin);
-                        }
-                      },
-                    ),
-                  ],
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppTheme.primary, AppTheme.primaryDark],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 90, 20, 60),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Row(
-                              children: [
-                                // أيقونة تدل على الدور
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    role == AppConstants.roleObserver
-                                        ? '👁 مراقب'
-                                        : '🧑‍🦽 مريض',
-                                    style: const TextStyle(
-                                        color: Colors.white, fontSize: 12),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(profile.patientName,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 4),
-                            Text(
-                              'الطبيب المعالج: ${profile.doctorName}',
-                              style: TextStyle(
-                                  color: Colors.white.withOpacity(0.85),
-                                  fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  bottom: TabBar(
-                    controller: _tabController,
-                    indicatorColor: Colors.white,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white60,
-                    tabs: const [
-                      Tab(text: 'ملفي'),
-                      Tab(text: 'أدويتي'),
-                      Tab(text: 'تقاريري'),
-                    ],
-                  ),
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: profileAsync.when(
+        loading: () => const Center(
+            child: CircularProgressIndicator(color: AppTheme.primary)),
+        error: (e, _) => Center(child: Text('خطأ: $e')),
+        data: (profile) => NestedScrollView(
+          headerSliverBuilder: (_, __) => [
+            SliverAppBar(
+              expandedHeight: 210,
+              pinned: true,
+              backgroundColor: AppTheme.primary,
+              automaticallyImplyLeading: false,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.local_pharmacy_outlined,
+                      color: Colors.white),
+                  tooltip: 'الصيدليات',
+                  onPressed: () => context.go(AppConstants.routePharmacies),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  onPressed: () async {
+                    await ref.read(authProvider.notifier).logout();
+                    if (context.mounted) context.go(AppConstants.routeLogin);
+                  },
                 ),
               ],
-              body: TabBarView(
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppTheme.primary, AppTheme.primaryDark],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 80, 8),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ======== Badge الدور ========
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              role == AppConstants.roleObserver
+                                  ? '👁 مراقب'
+                                  : '🧑‍🦽 مريض',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            profile.patientName,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'الطبيب المعالج: ${profile.doctorName}',
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.85),
+                                fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              bottom: TabBar(
                 controller: _tabController,
-                children: [
-                  _PatientInfoTab(profile: profile),
-                  _PatientMedsTab(profileId: profileId, role: role),
-                  _PatientReportsTab(profileId: profileId),
+                indicatorColor: Colors.white,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white60,
+                tabs: const [
+                  Tab(text: 'ملفي'),
+                  Tab(text: 'أدويتي'),
+                  Tab(text: 'تقاريري'),
                 ],
               ),
             ),
+          ],
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              _PatientInfoTab(profile: profile),
+              // ======== تمرير الدور الصح ========
+              _PatientMedsTab(profileId: profileId, role: role),
+              _PatientReportsTab(profileId: profileId),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -281,7 +261,7 @@ class _PatientMedsTab extends ConsumerWidget {
   }
 }
 
-// ======== بطاقة الدواء مع زر التسجيل ========
+// ======== بطاقة الدواء ========
 class _PatientMedCard extends ConsumerWidget {
   final Medication med;
   final String role;
@@ -291,7 +271,6 @@ class _PatientMedCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final logsAsync = ref.watch(medicationLogsProvider(med.id));
 
-    // هل أخذ الدواء اليوم؟
     final takenToday = logsAsync.whenOrNull(
           data: (logs) => logs.any((l) =>
               l.isTaken &&
@@ -301,6 +280,7 @@ class _PatientMedCard extends ConsumerWidget {
         ) ??
         false;
 
+    // ======== المريض فقط يقدر يضغط — المراقب يشوف بس ========
     final isPatient = role == AppConstants.rolePatient;
 
     return Card(
@@ -318,11 +298,11 @@ class _PatientMedCard extends ConsumerWidget {
                   child: Text(med.name,
                       style: Theme.of(context).textTheme.titleMedium),
                 ),
-                // ======== زر التسجيل — المريض فقط ========
+                // ======== زر الصح — المريض فقط ========
                 if (isPatient)
                   GestureDetector(
                     onTap: takenToday
-                        ? null // لو أخذ الدواء مش هيضغط تاني
+                        ? null
                         : () async {
                             final note = await _showLogDialog(context);
                             if (note != null) {
@@ -366,22 +346,25 @@ class _PatientMedCard extends ConsumerWidget {
                     ),
                   )
                 else
-                  // ======== المراقب يرى الحالة فقط بدون ضغط ========
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: takenToday
-                          ? AppTheme.success.withOpacity(0.15)
-                          : AppTheme.divider,
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Icon(
-                      Icons.check_rounded,
-                      color: takenToday
-                          ? AppTheme.success
-                          : AppTheme.textSecondary,
-                      size: 26,
+                  // ======== المراقب يرى الحالة فقط بدون تفاعل ========
+                  Tooltip(
+                    message: 'عرض فقط — المراقب لا يملك صلاحية التسجيل',
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: takenToday
+                            ? AppTheme.success.withOpacity(0.15)
+                            : AppTheme.divider,
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Icon(
+                        Icons.check_rounded,
+                        color: takenToday
+                            ? AppTheme.success
+                            : AppTheme.textSecondary,
+                        size: 26,
+                      ),
                     ),
                   ),
               ],
@@ -411,9 +394,8 @@ class _PatientMedCard extends ConsumerWidget {
                   ],
                 ),
               ),
-
-            // ======== شريط الحالة اليومية ========
             const SizedBox(height: 10),
+            // ======== شريط الحالة ========
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
