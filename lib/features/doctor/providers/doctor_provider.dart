@@ -9,7 +9,13 @@ final doctorRepositoryProvider = Provider<DoctorRepository>((ref) {
   return DoctorRepository(ref.watch(apiClientProvider));
 });
 
-// ======== قائمة المرضى ========
+// ======== Provider مساعد يرجع userId الحالي ========
+// كل Provider تاني يعتمد عليه — لو اتغير المستخدم كل حاجة تتحدث
+final _currentUserIdProvider = Provider<String?>((ref) {
+  return ref.watch(authProvider).user?.userId;
+});
+
+// ======== قائمة المرضى — مرتبطة بـ userId ========
 final patientsProvider =
     AsyncNotifierProvider<PatientsNotifier, List<PatientProfile>>(
         PatientsNotifier.new);
@@ -17,6 +23,8 @@ final patientsProvider =
 class PatientsNotifier extends AsyncNotifier<List<PatientProfile>> {
   @override
   Future<List<PatientProfile>> build() async {
+    final userId = ref.watch(_currentUserIdProvider);
+    if (userId == null) return [];
     return ref.watch(doctorRepositoryProvider).getMyPatients();
   }
 
@@ -55,21 +63,25 @@ class PatientsNotifier extends AsyncNotifier<List<PatientProfile>> {
   }
 }
 
-// ======== تفاصيل مريض ========
+// ======== تفاصيل مريض — مرتبطة بـ userId ========
 final patientDetailProvider =
     FutureProvider.family<PatientProfile, int>((ref, id) async {
+  final userId = ref.watch(_currentUserIdProvider);
+  if (userId == null) throw Exception('غير مسجل دخول');
   return ref.watch(doctorRepositoryProvider).getPatientById(id);
 });
 
-// ======== الأدوية ========
+// ======== الأدوية — مرتبطة بـ userId ========
 final medicationsProvider =
     AsyncNotifierProviderFamily<MedicationsNotifier, List<Medication>, int>(
         MedicationsNotifier.new);
 
 class MedicationsNotifier extends FamilyAsyncNotifier<List<Medication>, int> {
   @override
-  Future<List<Medication>> build(int arg) async {
-    return ref.watch(doctorRepositoryProvider).getMedications(arg);
+  Future<List<Medication>> build(int profileId) async {
+    final userId = ref.watch(_currentUserIdProvider);
+    if (userId == null) return [];
+    return ref.watch(doctorRepositoryProvider).getMedications(profileId);
   }
 
   Future<bool> addMedication({
@@ -118,6 +130,8 @@ class MedicationLogsNotifier
     extends FamilyAsyncNotifier<List<MedicationLog>, int> {
   @override
   Future<List<MedicationLog>> build(int medicationId) async {
+    final userId = ref.watch(_currentUserIdProvider);
+    if (userId == null) return [];
     return ref.watch(doctorRepositoryProvider).getMedicationLogs(medicationId);
   }
 
@@ -140,15 +154,17 @@ class MedicationLogsNotifier
   }
 }
 
-// ======== التقارير ========
+// ======== التقارير — مرتبطة بـ userId ========
 final reportsProvider =
     AsyncNotifierProviderFamily<ReportsNotifier, List<Report>, int>(
         ReportsNotifier.new);
 
 class ReportsNotifier extends FamilyAsyncNotifier<List<Report>, int> {
   @override
-  Future<List<Report>> build(int arg) async {
-    return ref.watch(doctorRepositoryProvider).getReports(arg);
+  Future<List<Report>> build(int profileId) async {
+    final userId = ref.watch(_currentUserIdProvider);
+    if (userId == null) return [];
+    return ref.watch(doctorRepositoryProvider).getReports(profileId);
   }
 
   Future<bool> addReport({
@@ -183,7 +199,7 @@ class ReportsNotifier extends FamilyAsyncNotifier<List<Report>, int> {
   }
 }
 
-// ======== الصيدليات ========
+// ======== الصيدليات — مرتبطة بـ userId ========
 final pharmaciesProvider =
     AsyncNotifierProvider<PharmaciesNotifier, List<Pharmacy>>(
         PharmaciesNotifier.new);
@@ -191,6 +207,8 @@ final pharmaciesProvider =
 class PharmaciesNotifier extends AsyncNotifier<List<Pharmacy>> {
   @override
   Future<List<Pharmacy>> build() async {
+    final userId = ref.watch(_currentUserIdProvider);
+    if (userId == null) return [];
     return ref.watch(doctorRepositoryProvider).getPharmacies();
   }
 

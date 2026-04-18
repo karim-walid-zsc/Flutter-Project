@@ -1,19 +1,16 @@
 // lib/features/auth/providers/auth_provider.dart
-// مزود حالة المصادقة باستخدام Riverpod
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../data/auth_repository.dart';
 import '../../../shared/models/auth_models.dart';
 
-// ======== Providers الأساسية ========
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(ref.watch(apiClientProvider));
 });
 
-// ======== حالة المصادقة ========
 class AuthState {
   final bool isLoading;
   final String? error;
@@ -39,7 +36,6 @@ class AuthState {
       );
 }
 
-// ======== Auth Notifier ========
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _repo;
 
@@ -49,6 +45,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final user = await _repo.login(email, password);
+      // ======== تعيين المستخدم الجديد ========
+      // كل الـ Providers التي تعتمد على authProvider ستتحدث تلقائياً
       state = state.copyWith(isLoading: false, user: user);
       return true;
     } catch (e) {
@@ -85,6 +83,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _repo.logout();
+    // ======== مسح المستخدم — كل الـ Providers تتحدث تلقائياً ========
     state = const AuthState();
   }
 
@@ -101,7 +100,6 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref.watch(authRepositoryProvider));
 });
 
-// ======== Session Provider — للتحقق عند فتح التطبيق ========
 final savedRoleProvider = FutureProvider<String?>((ref) async {
   return ref.watch(authRepositoryProvider).getSavedRole();
 });

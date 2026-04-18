@@ -9,10 +9,18 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../../doctor/providers/doctor_provider.dart';
 import '../../../../shared/models/auth_models.dart';
 
-// ======== Provider لجلب profileId من الـ Storage ========
+// ======== ربط الـ Provider بالمستخدم الحالي ========
 final myProfileIdProvider = FutureProvider<int?>((ref) async {
+  // لما userId يتغير — الـ Provider يعيد الجلب تلقائياً
+  final userId = ref.watch(authProvider).user?.userId;
+  if (userId == null) {
+    // fallback للـ Storage لو التطبيق اتفتح من جديد
+    return ref.watch(authRepositoryProvider).getSavedPatientProfileId();
+  }
   return ref.watch(authRepositoryProvider).getSavedPatientProfileId();
 });
+
+late final AutoDisposeFutureProvider<int?> myProfileIdProviderInstance;
 
 // ======== Provider لجلب دور المستخدم الحالي ========
 final currentUserRoleProvider = FutureProvider<String?>((ref) async {
@@ -87,7 +95,7 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen>
             data: (profile) => NestedScrollView(
               headerSliverBuilder: (_, __) => [
                 SliverAppBar(
-                  expandedHeight: 160,
+                  expandedHeight: 200,
                   pinned: true,
                   backgroundColor: AppTheme.primary,
                   automaticallyImplyLeading: false,
@@ -119,7 +127,7 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen>
                         ),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 80, 20, 16),
+                        padding: const EdgeInsets.fromLTRB(20, 90, 20, 60),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.end,
