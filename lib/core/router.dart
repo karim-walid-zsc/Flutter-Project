@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:healthcare_app/features/auth/presentation/screens/splash_screen.dart';
 import '../core/constants/app_constants.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
@@ -16,7 +17,7 @@ import '../features/pharmacy/presentation/screens/pharmacies_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: AppConstants.routeLogin,
+    initialLocation: '/',
     routes: [
       GoRoute(
         path: AppConstants.routeLogin,
@@ -52,6 +53,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppConstants.routePharmacies,
         builder: (_, __) => const PharmaciesScreen(),
+      ),
+      GoRoute(
+        path: '/',
+        builder: (_, __) => const SplashScreen(),
       ),
     ],
   );
