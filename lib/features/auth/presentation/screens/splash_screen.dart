@@ -1,3 +1,5 @@
+// lib/features/auth/presentation/screens/splash_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -37,28 +39,34 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _controller.forward();
 
-    // الانتقال بعد 3 ثواني
-    Future.delayed(const Duration(seconds: 5), () {
+    // انتظر 3 ثواني ثم تحقق من الجلسة
+    Future.delayed(const Duration(seconds: 3), () {
       if (!mounted) return;
-      _navigate();
+      _waitAndNavigate();
     });
   }
 
-  Future<void> _navigate() async {
-    // التحقق من وجود جلسة سابقة
-    final repo = ref.read(authRepositoryProvider);
-    final token = await repo.getSavedToken();
-    final role = await repo.getSavedRole();
-
+  Future<void> _waitAndNavigate() async {
+    // ======== انتظر حتى تنتهي استعادة الجلسة من authProvider ========
+    // _restoreSession في AuthNotifier بتشتغل في الـ background
+    // بننتظرها تخلص قبل ما نتنقل
+    while (!ref.read(authProvider).isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
     if (!mounted) return;
+    _navigate();
+  }
 
-    if (token == null || role == null) {
+  void _navigate() {
+    // ======== قراءة المستخدم من authProvider مباشرة ========
+    final user = ref.read(authProvider).user;
+
+    if (user == null) {
       context.go(AppConstants.routeLogin);
       return;
     }
 
-    // لو في جلسة — روح للصفحة المناسبة
-    switch (role) {
+    switch (user.role) {
       case 'Doctor':
         context.go(AppConstants.routeDoctorHome);
         break;
@@ -159,7 +167,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               const SizedBox(height: 32),
 
               // ======== معلومات الفريق ========
-              Text(
+              const Text(
                 'Fourth Year Team',
                 style: TextStyle(
                   color: Colors.white,
@@ -187,7 +195,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
+              const Text(
                 'Dr. Hajar Ramadan',
                 style: TextStyle(
                   color: Colors.white,
@@ -199,7 +207,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               const SizedBox(height: 64),
 
               // ======== مؤشر التحميل ========
-              _LoadingDots(),
+              const _LoadingDots(),
             ],
           ),
         ),
@@ -210,6 +218,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
 // ======== نقاط التحميل المتحركة ========
 class _LoadingDots extends StatefulWidget {
+  const _LoadingDots();
+
   @override
   State<_LoadingDots> createState() => _LoadingDotsState();
 }

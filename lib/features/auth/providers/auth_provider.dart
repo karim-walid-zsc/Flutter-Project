@@ -15,17 +15,20 @@ class AuthState {
   final bool isLoading;
   final String? error;
   final AuthResponse? user;
+  final bool isInitialized;
 
   const AuthState({
     this.isLoading = false,
     this.error,
     this.user,
+    this.isInitialized = false,
   });
 
   AuthState copyWith({
     bool? isLoading,
     String? error,
     AuthResponse? user,
+    bool? isInitialized,
     bool clearError = false,
     bool clearUser = false,
   }) =>
@@ -33,21 +36,48 @@ class AuthState {
         isLoading: isLoading ?? this.isLoading,
         error: clearError ? null : error ?? this.error,
         user: clearUser ? null : user ?? this.user,
+        isInitialized: isInitialized ?? this.isInitialized,
       );
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _repo;
 
-  AuthNotifier(this._repo) : super(const AuthState());
+  AuthNotifier(this._repo) : super(const AuthState()) {
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    try {
+      final token = await _repo.getSavedToken();
+      final role = await _repo.getSavedRole();
+      final name = await _repo.getSavedName();
+      final profileId = await _repo.getSavedPatientProfileId();
+
+      if (token != null && role != null) {
+        final restoredUser = AuthResponse(
+          token: token,
+          userId: '',
+          fullName: name ?? '',
+          email: '',
+          role: role,
+          patientProfileId: profileId,
+          expiresAt: DateTime.now().add(const Duration(days: 7)),
+        );
+        state = state.copyWith(user: restoredUser, isInitialized: true);
+      } else {
+        state = state.copyWith(isInitialized: true);
+      }
+    } catch (_) {
+      state = state.copyWith(isInitialized: true);
+    }
+  }
 
   Future<bool> login(String email, String password) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final user = await _repo.login(email, password);
-      // ======== تعيين المستخدم الجديد ========
-      // كل الـ Providers التي تعتمد على authProvider ستتحدث تلقائياً
-      state = state.copyWith(isLoading: false, user: user);
+      state = state.copyWith(isLoading: false, user: user, isInitialized: true);
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: _parseError(e));
@@ -73,7 +103,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         role: role,
         connectionCode: connectionCode,
       );
-      state = state.copyWith(isLoading: false, user: user);
+      state = state.copyWith(isLoading: false, user: user, isInitialized: true);
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: _parseError(e));
@@ -83,8 +113,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _repo.logout();
-    // ======== مسح المستخدم — كل الـ Providers تتحدث تلقائياً ========
-    state = const AuthState();
+    state = const AuthState(isInitialized: true);
   }
 
   String _parseError(dynamic e) {
